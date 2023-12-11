@@ -1,6 +1,6 @@
 from flask import Flask, request
+from markupsafe import escape
 import sqlite3
-import os
 import subprocess
 
 app = Flask(__name__)
@@ -9,7 +9,8 @@ app = Flask(__name__)
 @app.route('/xss')
 def xss():
     user_input = request.args.get('input', 'Hello!')
-    return '<h2>' + user_input + '</h2>'
+    escape_input = escape(user_input)  # Используем экранирование flask
+    return '<h2>' + escape_input + '</h2>'
 
 # IDOR
 @app.route('/profile/<user_id>')
@@ -60,6 +61,16 @@ def login():
         return 'Успешный вход!'
     else:
         return 'Ошибка входа!'
+
+# Механизмы защиты
+
+# CSP от XSS
+@app.after_request
+def set_csp(response):
+    # настройка CSP
+    csp_policy = "default-src 'self'; script-src 'self'; style-src 'self'"
+    response.headers['Content-Security-Policy'] = csp_policy
+    return response
 
 
 if __name__ == '__main__':
