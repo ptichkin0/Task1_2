@@ -4,9 +4,11 @@ import sqlite3
 import subprocess
 import re
 import shlex
+import os
 
 app = Flask(__name__)
 app.secret_key = '410e0dc210e18311dd4e5007435ef2e0'
+
 
 # XSS
 @app.route('/xss')
@@ -15,6 +17,7 @@ def xss():
     escape_input = escape(user_input)  # Используем экранирование flask
     return '<h2>' + escape_input + '</h2>'
 
+
 # IDOR
 @app.route('/profile/<user_id>')
 def profile(user_id):
@@ -22,6 +25,7 @@ def profile(user_id):
     if 'authenticated_user_id' in session and session['authenticated_user_id'] == user_id:
         return f'Профиль пользователя: {user_id}'
     abort(403)
+
 
 # SQL Injection
 @app.route('/search')
@@ -32,6 +36,7 @@ def search():
     c.execute("SELECT * FROM users WHERE name = ?", (user_input,))
     result = c.fetchall()
     return str(result)
+
 
 # OS Command Injection
 @app.route('/ping')
@@ -57,13 +62,28 @@ def ping():
         output = output.decode('cp1251')
 
     return output
+
+
 # Path Traversal
+whitelist = {'requirements.txt'}
+
 @app.route('/file')
 def file():
     filename = request.args.get('filename', 'example.txt')
-    with open(filename, 'r') as file:
-        content = file.read()
-    return content
+    new_filename = os.path.normpath(filename)
+    if new_filename not in whitelist:
+        return 'Доступ запрещен!'
+    # Проверка, что файл не выходит за пределы директории
+    if os.path.isabs(new_filename) or '..' in new_filename.split(os.path.sep):
+        return 'Доступ запрещен!'
+
+    try:
+        with open(new_filename, 'r') as file:
+            content = file.read()
+        return content
+    except IOError:
+        return 'Файл не найден'
+
 
 # Brute Force
 @app.route('/login', methods=['GET', 'POST'])
@@ -84,13 +104,15 @@ def login():
     </form>
     '''
 
+
 @app.route('/logout')
 def logout():
     session.pop('authenticated_user_id', None)  # Удаляем пользователя из сессии
     return 'Вы вышли из системы'
 
+
 # Механизмы защиты
-#__________________________________________________________________
+# __________________________________________________________________
 # CSP от XSS
 @app.after_request
 def set_csp(response):
@@ -99,12 +121,13 @@ def set_csp(response):
     response.headers['Content-Security-Policy'] = csp_policy
     return response
 
+
 # Проверка, является ли ввод допустимым
 def is_valid_hostname(hostname):
-
     if re.match(r'^[a-zA-Z0-9.-]+$', hostname):
         return True
     return False
+
 
 if __name__ == '__main__':
     app.run(debug=True)
