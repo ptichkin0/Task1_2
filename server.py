@@ -2,6 +2,8 @@ from flask import Flask, request, session, abort
 from markupsafe import escape
 import sqlite3
 import subprocess
+import re
+import shlex
 
 app = Flask(__name__)
 app.secret_key = '410e0dc210e18311dd4e5007435ef2e0'
@@ -35,11 +37,18 @@ def search():
 @app.route('/ping')
 def ping():
     hostname = request.args.get('hostname', 'localhost')
+    if not is_valid_hostname(hostname):
+        return 'Недопустимый ввод'
 
-    # Формируем и выполняем команду
-    command = f"ping {hostname}"
-    result = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    output, error = result.communicate()
+    # Экранирование
+    safe_hostname = shlex.quote(hostname)
+    # subprocess.run по безопаснее чем subprocess.Popen
+    try:
+        result = subprocess.run(["ping", safe_hostname], stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE, text=True)
+        output = result.stdout
+    except Exception as e:
+        output = str(e)
 
     # Разборки с кодировкой
     try:
@@ -90,6 +99,12 @@ def set_csp(response):
     response.headers['Content-Security-Policy'] = csp_policy
     return response
 
+# Проверка, является ли ввод допустимым
+def is_valid_hostname(hostname):
+
+    if re.match(r'^[a-zA-Z0-9.-]+$', hostname):
+        return True
+    return False
 
 if __name__ == '__main__':
     app.run(debug=True)
