@@ -1,4 +1,6 @@
 from flask import Flask, request, session, abort
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from markupsafe import escape
 import sqlite3
 import subprocess
@@ -8,8 +10,11 @@ import os
 
 app = Flask(__name__)
 app.secret_key = '410e0dc210e18311dd4e5007435ef2e0'
-
-
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=["3 per minute"],
+)
 # XSS
 @app.route('/xss')
 def xss():
@@ -84,9 +89,11 @@ def file():
     except IOError:
         return 'Файл не найден'
 
+# Настройка ограничения скорости запросов
 
 # Brute Force
 @app.route('/login', methods=['GET', 'POST'])
+@limiter.limit("3 per minute")
 def login():
     if request.method == 'POST':
         username = request.form.get('username', '')
