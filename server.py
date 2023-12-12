@@ -27,7 +27,7 @@ def search():
     user_input = request.args.get('input', '')
     conn = sqlite3.connect('database.db')
     c = conn.cursor()
-    c.execute("SELECT * FROM users WHERE name = '" + user_input + "'")
+    c.execute("SELECT * FROM users WHERE name = ?", (user_input,))
     result = c.fetchall()
     return str(result)
 
